@@ -132,11 +132,35 @@ docker build -f Dockerfile.prod -t ascendx-lr .
 docker run -p 8000:8000 -e DATABASE_URL="postgresql://…" ascendx-lr
 ```
 
+### The database is not part of the image
+
+`docker-compose.yml` runs Postgres for local development only. The production image
+contains the app and nothing else, so a hosted deployment needs a Postgres instance of
+its own — Render Postgres, Koyeb Managed Postgres, Neon, Supabase, or anything Postgres 16.
+
+Point `DATABASE_URL` at that instance. Copying the value out of `server/.env` will not
+work: inside a container `localhost` is the container itself, so Prisma fails at boot with
+
+```
+Error: P1001: Can't reach database server at `localhost:5432`
+```
+
+Most managed providers require TLS, so append `?sslmode=require` unless the provider's
+own connection string already includes it:
+
+```
+postgresql://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require
+```
+
+On Render, prefer the **Internal Database URL** when the database and service share a
+region — it skips the public internet and needs no `sslmode`. Use the External URL, with
+`sslmode=require`, from anywhere else.
+
 Environment variables:
 
 | Variable | Required | Notes |
 |---|---|---|
-| `DATABASE_URL` | yes | Postgres 16. Managed Postgres on the host, not a container. |
+| `DATABASE_URL` | yes | Postgres 16 from a managed provider, never `localhost` |
 | `PORT` | no | Defaults to `8000`. Most platforms inject this automatically. |
 | `AI_MODE` | no | `mock` (default) or `live` |
 | `GEMINI_API_KEY` | only for `live` | Falls back to `mock` when unset |
@@ -161,6 +185,14 @@ own working directory, entrypoint and command:
 Set the exposed port to **8000** with an HTTP health check on `/health`, attach a managed
 Postgres and pass its connection string as `DATABASE_URL`. The image is ~1.1 GB, mostly
 the Google ADK and Prisma engine binaries, so give the build a little headroom.
+
+### Render
+
+The same image works unchanged. Create a **Web Service** from the repository, choose
+**Docker** as the runtime, and set the Dockerfile path to `Dockerfile.prod`; leave the
+Docker command and pre-deploy command empty. Create a **Postgres** instance too, then
+copy its Internal Database URL into `DATABASE_URL` on the web service. Render supplies
+`PORT` automatically.
 
 ## AI modes
 
