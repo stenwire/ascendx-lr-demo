@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: leave_app
+      POSTGRES_PASSWORD: leave_app
+      POSTGRES_DB: leave_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - leave_app_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leave_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://leave_app:leave_app@postgres:5432/leave_app?schema=public
+      PORT: 4000
+      AI_MODE: ${AI_MODE:-mock}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
+      STAFFING_MIN_AVAILABLE_RATIO: ${STAFFING_MIN_AVAILABLE_RATIO:-0.5}
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./server/src:/app/src
+      - ./server/prisma:/app/prisma
+      - ./server/test:/app/test
+
+  client:
+    build: ./client
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      VITE_API_PROXY_TARGET: http://server:4000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client/src:/app/src
+      - ./client/index.html:/app/index.html
+
+volumes:
+  leave_app_pg_data:
