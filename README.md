@@ -156,6 +156,28 @@ On Render, prefer the **Internal Database URL** when the database and service sh
 region — it skips the public internet and needs no `sslmode`. Use the External URL, with
 `sslmode=require`, from anywhere else.
 
+#### Supabase: use the pooler, not the direct connection
+
+Supabase's direct host, `db.<project-ref>.supabase.co`, resolves to an **IPv6 address
+only**. Most hosts — Render included — have no IPv6 egress, so a container cannot route
+to it and Prisma reports `P1001` even though the credentials are correct.
+
+Use the **session pooler** instead, which is reachable over IPv4. Its connection string
+differs from the direct one in two places: the host, and the username, which gains the
+project ref.
+
+```
+postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+Copy the exact value from **Project Settings → Database → Connection string → Session
+pooler**; the region prefix varies per project.
+
+Stay on port **5432**, the session pooler. The transaction pooler on 6543 does not support
+the advisory locks `prisma migrate deploy` takes out, so migrations can hang or fail
+there. Transaction pooling needs `?pgbouncer=true` plus a separate `directUrl` for
+migrations, which this app does not set up.
+
 Environment variables:
 
 | Variable | Required | Notes |
