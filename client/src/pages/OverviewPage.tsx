@@ -23,12 +23,12 @@ export function OverviewPage() {
   // Only a manager needs the queue; employees skip the call entirely.
   const queue = useAsync(async () => {
     if (!isManager) return [] as LeaveRequest[];
-    const { leaveRequests } = await listPendingQueue(meId);
+    const leaveRequests = await listPendingQueue(meId);
     const reports = new Set(reportIds ? reportIds.split(",") : []);
     return leaveRequests.filter((r) => reports.has(r.employeeId));
   }, [meId, isManager, reportIds]);
 
-  const myRequests = mine.data?.leaveRequests ?? [];
+  const myRequests = mine.data ?? [];
   const today = todayUtc();
 
   const upcoming = myRequests.filter((r) => r.status === "approved" && parseDateKey(r.endDate) >= today);
@@ -60,7 +60,16 @@ export function OverviewPage() {
         }
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Below sm these scroll sideways as a compact row: four stacked tiles push
+          the actual content off a phone screen. They stay within the page's own
+          gutters rather than bleeding to the edge, so they line up with the cards
+          below. From sm up they lay out as a grid, where there is room. */}
+      <div
+        className="mb-6 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1
+          [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
+          sm:grid sm:snap-none sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:pb-0
+          lg:grid-cols-4"
+      >
         <StatTile label="Awaiting decision" value={myPending} hint="Your requests not yet decided" />
         <StatTile label="Days approved" value={daysApproved} hint="Across all approved leave" />
         <StatTile label="Upcoming leave" value={upcoming.length} hint="Approved and still ahead" />

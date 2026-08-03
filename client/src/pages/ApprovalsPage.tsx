@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toUserMessage } from "../lib/errorMessages";
 import { Link } from "react-router-dom";
 import { decideLeaveRequest, listPendingQueue, type LeaveRequest, type StaffingWarning } from "../api/client";
 import { useIdentity } from "../auth/IdentityContext";
@@ -15,7 +16,7 @@ export function ApprovalsPage() {
   const reportIds = directReports.map((r) => r.id).join(",");
 
   const { data, loading, error, refetch } = useAsync(async () => {
-    const { leaveRequests } = await listPendingQueue(meId);
+    const leaveRequests = await listPendingQueue(meId);
     // status=pending returns every pending request org-wide, so scope it to this
     // manager's own reports.
     const reports = new Set(reportIds ? reportIds.split(",") : []);
@@ -48,7 +49,7 @@ export function ApprovalsPage() {
       });
       refetch();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(toUserMessage(err));
     } finally {
       setBusyId(null);
     }

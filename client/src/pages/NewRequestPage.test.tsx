@@ -15,7 +15,7 @@ describe("NewRequestPage", () => {
 
   it("submits the form and posts the entered values", async () => {
     const user = userEvent.setup();
-    const onCreate = vi.fn(() => ({ leaveRequest: makeRequest({ id: "new-1" }) }));
+    const onCreate = vi.fn(() => makeRequest({ id: "new-1" }));
     mockFetch({ onCreate });
     renderApp(<NewRequestPage />, { route: "/requests/new", signedInAs: ALEX.id });
 
@@ -92,16 +92,16 @@ describe("NewRequestPage", () => {
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = input.toString();
         if (url.startsWith("/employees")) {
-          return { ok: true, status: 200, json: async () => ({ employees: [ALEX] }) } as Response;
+          return { ok: true, status: 200, json: async () => ({ status: "success", message: "OK", data: [ALEX] }) } as Response;
         }
         if ((init?.method ?? "GET") === "POST") {
           return {
             ok: false,
             status: 500,
-            json: async () => ({ error: { code: "internal_error", message: "Something went wrong." } }),
+            json: async () => ({ status: "error", message: "Something went wrong.", data: null, code: "internal_error" }),
           } as Response;
         }
-        return { ok: true, status: 200, json: async () => ({ leaveRequests: [] }) } as Response;
+        return { ok: true, status: 200, json: async () => ({ status: "success", message: "OK", data: [] }) } as Response;
       }),
     );
     renderApp(<NewRequestPage />, { route: "/requests/new", signedInAs: ALEX.id });
@@ -112,7 +112,7 @@ describe("NewRequestPage", () => {
     await user.type(screen.getByLabelText("Reason"), "Future trip");
     await user.click(screen.getByRole("button", { name: "Submit request" }));
 
-    expect(await screen.findByText("Something went wrong.")).toBeInTheDocument();
+    expect(await screen.findByText(/Something went wrong on our side/)).toBeInTheDocument();
     // The form keeps its contents so the request can be retried.
     expect(screen.getByLabelText("Reason")).toHaveValue("Future trip");
     expect(screen.getByRole("button", { name: "Submit request" })).toBeEnabled();

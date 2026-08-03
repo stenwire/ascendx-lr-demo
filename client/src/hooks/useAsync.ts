@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toUserMessage } from "../lib/errorMessages";
 
 export interface AsyncState<T> {
   data: T | null;
@@ -35,7 +36,7 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]): AsyncState<T
         if (!cancelled) setData(result);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(toUserMessage(err));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

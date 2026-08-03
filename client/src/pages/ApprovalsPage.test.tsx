@@ -37,18 +37,18 @@ describe("ApprovalsPage", () => {
       vi.fn(async (input: RequestInfo | URL) => {
         const url = input.toString();
         if (url.startsWith("/employees")) {
-          return { ok: true, status: 200, json: async () => ({ employees: [ALEX, BO, MANAGER] }) } as Response;
+          return { ok: true, status: 200, json: async () => ({ status: "success", message: "OK", data: [ALEX, BO, MANAGER] }) } as Response;
         }
         return {
           ok: false,
           status: 500,
-          json: async () => ({ error: { code: "internal_error", message: "Something went wrong." } }),
+          json: async () => ({ status: "error", message: "Something went wrong.", data: null, code: "internal_error" }),
         } as Response;
       }),
     );
     renderApp(<ApprovalsPage />, { route: "/approvals", signedInAs: MANAGER.id });
 
-    expect(await screen.findByText("Something went wrong.")).toBeInTheDocument();
+    expect(await screen.findByText(/Something went wrong on our side/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toUserMessage } from "../lib/errorMessages";
 import { useNavigate, useParams } from "react-router-dom";
 import { getLeaveRequest, retryAiMessage } from "../api/client";
 import { useIdentity } from "../auth/IdentityContext";
@@ -21,7 +22,7 @@ export function RequestDetailPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
 
-  const request = data?.leaveRequest;
+  const request = data;
   const nameOf = (employeeId: string | null) =>
     employeeId ? (employees.find((e) => e.id === employeeId)?.name ?? "Unknown") : null;
 
@@ -32,7 +33,7 @@ export function RequestDetailPage() {
       await retryAiMessage(meId, id);
       refetch();
     } catch (err) {
-      setRegenerateError(err instanceof Error ? err.message : String(err));
+      setRegenerateError(toUserMessage(err));
     } finally {
       setRegenerating(false);
     }

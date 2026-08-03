@@ -70,7 +70,7 @@ describe("RequestDetailPage", () => {
     const user = userEvent.setup();
     const approved = makeRequest({ status: "approved", aiMessage: "Original message." });
     const regenerated = { ...approved, aiMessage: "A freshly written message." };
-    const onRetryMessage = vi.fn(() => ({ leaveRequest: regenerated }));
+    const onRetryMessage = vi.fn(() => regenerated);
 
     const byId: Record<string, typeof approved> = { [approved.id]: approved };
     mockFetch({
@@ -102,6 +102,6 @@ describe("RequestDetailPage", () => {
       { route: "/requests/does-not-exist", signedInAs: ALEX.id },
     );
 
-    expect(await screen.findByText("Leave request not found.")).toBeInTheDocument();
+    expect(await screen.findByText(/no longer exists/)).toBeInTheDocument();
   });
 });

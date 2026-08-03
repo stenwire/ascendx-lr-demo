@@ -33,33 +33,44 @@ export function mockFetch(api: MockApi = {}) {
     const method = (init?.method ?? "GET").toUpperCase();
     const body = init?.body ? JSON.parse(String(init.body)) : {};
 
-    const json = (data: unknown, status = 200) =>
-      ({ ok: status < 400, status, json: async () => data }) as Response;
+    // Mirrors the server's response envelope (server/src/utils/apiResponse.ts),
+    // so tests exercise the same contract the client parses in production.
+    const ok = (data: unknown, status = 200) =>
+      ({
+        ok: true,
+        status,
+        json: async () => ({ status: "success", message: "OK", data }),
+      }) as Response;
 
-    if (url.startsWith("/employees")) return json({ employees });
+    const fail = (message: string, code: string, status = 400) =>
+      ({
+        ok: false,
+        status,
+        json: async () => ({ status: "error", message, data: null, code }),
+      }) as Response;
+
+    if (url.startsWith("/employees")) return ok(employees);
 
     const detail = url.match(/^\/leave-requests\/([^/?]+)$/);
     if (detail && method === "GET") {
       const found = api.byId?.[detail[1]];
-      return found
-        ? json({ leaveRequest: found })
-        : json({ error: { code: "not_found", message: "Leave request not found." } }, 404);
+      return found ? ok(found) : fail("Leave request not found.", "not_found", 404);
     }
-    if (detail && method === "PATCH") return json(api.onDecide?.(detail[1], body) ?? {});
+    if (detail && method === "PATCH") return ok(api.onDecide?.(detail[1], body) ?? {});
 
     const retry = url.match(/^\/leave-requests\/([^/?]+)\/retry-ai-message$/);
-    if (retry) return json(api.onRetryMessage?.(retry[1]) ?? {});
+    if (retry) return ok(api.onRetryMessage?.(retry[1]) ?? {});
 
     if (url.startsWith("/leave-requests")) {
-      if (method === "POST") return json(api.onCreate?.(body) ?? {}, 201);
+      if (method === "POST") return ok(api.onCreate?.(body) ?? {}, 201);
 
       const query = new URLSearchParams(url.split("?")[1] ?? "");
       const employeeId = query.get("employee_id");
-      if (employeeId) return json({ leaveRequests: api.byEmployee?.[employeeId] ?? [] });
-      if (query.get("status") === "pending") return json({ leaveRequests: api.pending ?? [] });
+      if (employeeId) return ok(api.byEmployee?.[employeeId] ?? []);
+      if (query.get("status") === "pending") return ok(api.pending ?? []);
     }
 
-    return json({ error: { code: "not_found", message: `Unhandled ${method} ${url}` } }, 404);
+    return fail(`Unhandled ${method} ${url}`, "not_found", 404);
   });
 
   vi.stubGlobal("fetch", spy);

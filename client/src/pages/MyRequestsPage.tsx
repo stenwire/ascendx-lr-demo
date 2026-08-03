@@ -26,7 +26,7 @@ export function MyRequestsPage() {
   const [filter, setFilter] = useState<LeaveStatus | "all">("all");
 
   const { data, loading, error, refetch } = useAsync(() => listMyLeaveRequests(meId), [meId]);
-  const all = data?.leaveRequests ?? [];
+  const all = data ?? [];
   const rows = filter === "all" ? all : all.filter((r) => r.status === filter);
 
   const columns: Column<LeaveRequest>[] = [

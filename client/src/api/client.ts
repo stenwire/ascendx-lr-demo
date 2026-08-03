@@ -28,8 +28,34 @@ export interface StaffingWarning {
   minRequired: number;
 }
 
-export interface ApiError {
-  error: { code: string; field?: string; message: string };
+/** Every endpoint answers in this envelope; see server/src/utils/apiResponse.ts. */
+interface SuccessEnvelope<T> {
+  status: "success";
+  message: string;
+  data: T;
+}
+
+interface FailureEnvelope {
+  status: "error";
+  message: string;
+  data: null;
+  code: string;
+  field?: string;
+}
+
+/** Carries the server's machine-readable code so callers can branch on it. */
+export class ApiError extends Error {
+  readonly code: string;
+  readonly field?: string;
+  readonly statusCode: number;
+
+  constructor(message: string, code: string, statusCode: number, field?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.field = field;
+    this.statusCode = statusCode;
+  }
 }
 
 async function request<T>(path: string, employeeId: string | null, init?: RequestInit): Promise<T> {
@@ -41,38 +67,53 @@ async function request<T>(path: string, employeeId: string | null, init?: Reques
       ...(init?.headers ?? {}),
     },
   });
-  const body = await res.json();
-  if (!res.ok) {
-    const err = body as ApiError;
-    throw new Error(err.error?.message ?? `Request failed with status ${res.status}`);
+
+  // A proxy or crash can answer with HTML rather than the envelope; surface that
+  // as a normal failure instead of a JSON parse error.
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new ApiError(`Request failed with status ${res.status}.`, "invalid_response", res.status);
   }
-  return body as T;
+
+  if (!res.ok) {
+    const failure = body as Partial<FailureEnvelope>;
+    throw new ApiError(
+      failure?.message ?? `Request failed with status ${res.status}.`,
+      failure?.code ?? "unknown_error",
+      res.status,
+      failure?.field,
+    );
+  }
+
+  return (body as SuccessEnvelope<T>).data;
 }
 
-export function listEmployees(): Promise<{ employees: Employee[] }> {
+export function listEmployees(): Promise<Employee[]> {
   return request("/employees", null);
 }
 
 export function createLeaveRequest(
   employeeId: string,
   input: { startDate: string; endDate: string; reason: string },
-): Promise<{ leaveRequest: LeaveRequest }> {
+): Promise<LeaveRequest> {
   return request("/leave-requests", employeeId, { method: "POST", body: JSON.stringify(input) });
 }
 
-export function listMyLeaveRequests(employeeId: string): Promise<{ leaveRequests: LeaveRequest[] }> {
+export function listMyLeaveRequests(employeeId: string): Promise<LeaveRequest[]> {
   return request(`/leave-requests?employee_id=${employeeId}`, employeeId);
 }
 
-export function listPendingQueue(managerId: string): Promise<{ leaveRequests: LeaveRequest[] }> {
+export function listPendingQueue(managerId: string): Promise<LeaveRequest[]> {
   return request(`/leave-requests?status=pending`, managerId);
 }
 
-export function getLeaveRequest(viewerId: string, leaveRequestId: string): Promise<{ leaveRequest: LeaveRequest }> {
+export function getLeaveRequest(viewerId: string, leaveRequestId: string): Promise<LeaveRequest> {
   return request(`/leave-requests/${leaveRequestId}`, viewerId);
 }
 
-export function listLeaveRequestsFor(viewerId: string, targetEmployeeId: string): Promise<{ leaveRequests: LeaveRequest[] }> {
+export function listLeaveRequestsFor(viewerId: string, targetEmployeeId: string): Promise<LeaveRequest[]> {
   return request(`/leave-requests?employee_id=${targetEmployeeId}`, viewerId);
 }
 
@@ -84,18 +125,23 @@ export function listLeaveRequestsFor(viewerId: string, targetEmployeeId: string)
  */
 export async function listTeamLeaveRequests(viewerId: string, employeeIds: string[]): Promise<LeaveRequest[]> {
   const results = await Promise.all(employeeIds.map((id) => listLeaveRequestsFor(viewerId, id)));
-  return results.flatMap((r) => r.leaveRequests);
+  return results.flat();
 }
 
 export function retryAiMessage(
   viewerId: string,
   leaveRequestId: string,
   managerNote?: string,
-): Promise<{ leaveRequest: LeaveRequest }> {
+): Promise<LeaveRequest> {
   return request(`/leave-requests/${leaveRequestId}/retry-ai-message`, viewerId, {
     method: "POST",
     body: JSON.stringify(managerNote ? { managerNote } : {}),
   });
+}
+
+/** Manager-only. Replaces all leave requests with the seeded sample set. */
+export function resetDemoLeaveRequests(managerId: string): Promise<{ count: number }> {
+  return request("/demo/reset-leave-requests", managerId, { method: "POST" });
 }
 
 export interface DecideResponse {

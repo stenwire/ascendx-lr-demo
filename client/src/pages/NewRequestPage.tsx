@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { toUserMessage } from "../lib/errorMessages";
 import { useNavigate } from "react-router-dom";
 import { createLeaveRequest } from "../api/client";
 import { useIdentity } from "../auth/IdentityContext";
@@ -31,10 +32,10 @@ export function NewRequestPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const { leaveRequest } = await createLeaveRequest(me!.id, { startDate, endDate, reason });
+      const leaveRequest = await createLeaveRequest(me!.id, { startDate, endDate, reason });
       navigate(`/requests/${leaveRequest.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(toUserMessage(err));
       setSubmitting(false);
     }
   }

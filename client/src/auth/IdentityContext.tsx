@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { toUserMessage } from "../lib/errorMessages";
 import { listEmployees, type Employee } from "../api/client";
 
 /**
@@ -36,7 +37,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     listEmployees()
-      .then(({ employees: loaded }) => {
+      .then((loaded) => {
         if (cancelled) return;
         setEmployees(loaded);
         setMeIdState((current) => {
@@ -48,7 +49,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
         });
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(toUserMessage(err));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
