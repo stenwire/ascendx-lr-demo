@@ -57,23 +57,63 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
   });
 }
 
+/**
+ * Authorisation rule for reads: an employee sees their own records, and a
+ * manager sees their direct reports'. Nobody sees anyone else's, which is what
+ * makes an employee id in the URL safe to expose.
+ */
+export async function canViewRecordsOf(viewerId: string, targetEmployeeId: string): Promise<boolean> {
+  if (viewerId === targetEmployeeId) return true;
+  const target = await prisma.employee.findUnique({
+    where: { id: targetEmployeeId },
+    select: { managerId: true },
+  });
+  return target?.managerId === viewerId;
+}
+
+/** Ids the viewer is allowed to read: themselves plus anyone reporting to them. */
+async function visibleEmployeeIds(viewerId: string): Promise<string[]> {
+  const reports = await prisma.employee.findMany({
+    where: { managerId: viewerId },
+    select: { id: true },
+  });
+  return [viewerId, ...reports.map((r) => r.id)];
+}
+
 export interface ListLeaveRequestsFilter {
+  viewerId: string;
   employeeId?: string;
   status?: LeaveStatus;
 }
 
 export async function listLeaveRequests(filter: ListLeaveRequestsFilter): Promise<LeaveRequest[]> {
+  if (filter.employeeId) {
+    if (!(await canViewRecordsOf(filter.viewerId, filter.employeeId))) {
+      throw new ForbiddenError("You can only view your own leave requests, or those of your direct reports.");
+    }
+    return prisma.leaveRequest.findMany({
+      where: { employeeId: filter.employeeId, status: filter.status },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  // No employee_id means the manager queue. Scope it to the viewer's own reports
+  // rather than returning every pending request in the company.
   return prisma.leaveRequest.findMany({
-    where: {
-      employeeId: filter.employeeId,
-      status: filter.status,
-    },
+    where: { employeeId: { in: await visibleEmployeeIds(filter.viewerId) }, status: filter.status },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function getLeaveRequestById(id: string): Promise<LeaveRequest | null> {
-  return prisma.leaveRequest.findUnique({ where: { id } });
+/**
+ * Returns null both when the record does not exist and when the viewer may not
+ * see it, so the caller answers 404 either way — a 403 would confirm that
+ * somebody else's request exists at that id.
+ */
+export async function getLeaveRequestById(id: string, viewerId: string): Promise<LeaveRequest | null> {
+  const leaveRequest = await prisma.leaveRequest.findUnique({ where: { id } });
+  if (!leaveRequest) return null;
+  return (await canViewRecordsOf(viewerId, leaveRequest.employeeId)) ? leaveRequest : null;
 }
 
 const STAFFING_MIN_AVAILABLE_RATIO = Number(process.env.STAFFING_MIN_AVAILABLE_RATIO ?? "0.5");
@@ -180,13 +220,25 @@ export async function decideLeaveRequest(input: DecideLeaveRequestInput): Promis
 }
 
 /** Regenerates the AI message for an already-approved request (retry-on-failure path). */
-export async function retryApprovalMessage(leaveRequestId: string, managerNote?: string | null): Promise<LeaveRequest> {
+export async function retryApprovalMessage(
+  leaveRequestId: string,
+  viewerId: string,
+  managerNote?: string | null,
+): Promise<LeaveRequest> {
   const existing = await prisma.leaveRequest.findUnique({ where: { id: leaveRequestId } });
-  if (!existing) throw new NotFoundError("Leave request not found.");
+  // Hidden records are reported as missing, matching getLeaveRequestById.
+  if (!existing || !(await canViewRecordsOf(viewerId, existing.employeeId))) {
+    throw new NotFoundError("Leave request not found.");
+  }
   if (existing.status !== LeaveStatus.approved) {
     throw new ValidationError("status", "Can only regenerate the AI message for an approved request.");
   }
+
   const employee = await prisma.employee.findUniqueOrThrow({ where: { id: existing.employeeId } });
+  // The message is written on the manager's behalf, so only they may rewrite it.
+  if (employee.managerId !== viewerId) {
+    throw new ForbiddenError("Only the employee's manager can regenerate this message.");
+  }
 
   const { message } = await generateApprovalMessage({
     leaveRequestId: existing.id,

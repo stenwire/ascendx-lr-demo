@@ -37,8 +37,8 @@ describe("POST /leave-requests", () => {
       .set("x-employee-id", alex.id)
       .send({ startDate: "2027-01-10", endDate: "2027-01-12", reason: "PTO" });
     expect(res.status).toBe(201);
-    expect(res.body.leaveRequest.status).toBe("pending");
-    expect(res.body.leaveRequest.employeeId).toBe(alex.id);
+    expect(res.body.data.status).toBe("pending");
+    expect(res.body.data.employeeId).toBe(alex.id);
   });
 
   it("rejects endDate before startDate with a field-level 400", async () => {
@@ -47,7 +47,7 @@ describe("POST /leave-requests", () => {
       .set("x-employee-id", alex.id)
       .send({ startDate: "2027-01-12", endDate: "2027-01-10", reason: "PTO" });
     expect(res.status).toBe(400);
-    expect(res.body.error.field).toBe("endDate");
+    expect(res.body.field).toBe("endDate");
   });
 
   it("rejects a request fully in the past", async () => {
@@ -72,7 +72,7 @@ describe("GET /leave-requests", () => {
     await request(app).post("/leave-requests").set("x-employee-id", alex.id).send({ startDate: "2027-02-01", endDate: "2027-02-02", reason: "x" });
     const res = await request(app).get(`/leave-requests?employee_id=${alex.id}`).set("x-employee-id", alex.id);
     expect(res.status).toBe(200);
-    expect(res.body.leaveRequests).toHaveLength(1);
+    expect(res.body.data).toHaveLength(1);
   });
 
   it("gives a manager's pending queue via status=pending", async () => {
@@ -80,7 +80,7 @@ describe("GET /leave-requests", () => {
     await request(app).post("/leave-requests").set("x-employee-id", bo.id).send({ startDate: "2027-02-03", endDate: "2027-02-04", reason: "y" });
     const res = await request(app).get(`/leave-requests?status=pending`).set("x-employee-id", manager.id);
     expect(res.status).toBe(200);
-    expect(res.body.leaveRequests.length).toBeGreaterThanOrEqual(2);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(2);
   });
 
   it("requires either employee_id or status=pending", async () => {
@@ -95,24 +95,24 @@ describe("PATCH /leave-requests/:id", () => {
       .post("/leave-requests")
       .set("x-employee-id", employeeId)
       .send({ startDate: "2027-03-01", endDate: "2027-03-02", reason: "PTO" });
-    return res.body.leaveRequest.id as string;
+    return res.body.data.id as string;
   }
 
   it("approves and fills in an AI message (mock mode)", async () => {
     const id = await createPending(alex.id);
     const res = await request(app).patch(`/leave-requests/${id}`).set("x-employee-id", manager.id).send({ status: "approved" });
     expect(res.status).toBe(200);
-    expect(res.body.decided).toBe(true);
-    expect(res.body.leaveRequest.status).toBe("approved");
-    expect(res.body.leaveRequest.aiMessage).toBeTruthy();
+    expect(res.body.data.decided).toBe(true);
+    expect(res.body.data.leaveRequest.status).toBe("approved");
+    expect(res.body.data.leaveRequest.aiMessage).toBeTruthy();
   });
 
   it("rejects without generating an AI message", async () => {
     const id = await createPending(alex.id);
     const res = await request(app).patch(`/leave-requests/${id}`).set("x-employee-id", manager.id).send({ status: "rejected" });
     expect(res.status).toBe(200);
-    expect(res.body.leaveRequest.status).toBe("rejected");
-    expect(res.body.leaveRequest.aiMessage).toBeNull();
+    expect(res.body.data.leaveRequest.status).toBe("rejected");
+    expect(res.body.data.leaveRequest.aiMessage).toBeNull();
   });
 
   it("returns 403 when a non-manager tries to decide the request", async () => {
@@ -144,14 +144,14 @@ describe("PATCH /leave-requests/:id", () => {
     const boId = await createPending(bo.id);
     const warned = await request(app).patch(`/leave-requests/${boId}`).set("x-employee-id", manager.id).send({ status: "approved" });
     expect(warned.status).toBe(200);
-    expect(warned.body.decided).toBe(false);
-    expect(warned.body.staffingWarning).toBeTruthy();
+    expect(warned.body.data.decided).toBe(false);
+    expect(warned.body.data.staffingWarning).toBeTruthy();
 
     const approved = await request(app)
       .patch(`/leave-requests/${boId}`)
       .set("x-employee-id", manager.id)
       .send({ status: "approved", acknowledgeStaffingWarning: true });
-    expect(approved.body.decided).toBe(true);
-    expect(approved.body.leaveRequest.status).toBe("approved");
+    expect(approved.body.data.decided).toBe(true);
+    expect(approved.body.data.leaveRequest.status).toBe("approved");
   });
 });
