@@ -10,5 +10,8 @@ export default defineConfig({
       AI_MODE: "mock",
     },
     globalSetup: "./test/globalSetup.ts",
+    // The API suites share one Postgres database and each truncates it between
+    // tests, so running files in parallel lets them clobber each other's rows.
+    fileParallelism: false,
   },
 });
