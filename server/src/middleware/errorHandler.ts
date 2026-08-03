@@ -1,17 +1,18 @@
 import type { NextFunction, Request, Response } from "express";
 import { ForbiddenError, NotFoundError, ValidationError } from "../services/leaveRequestService.js";
+import { failureResponse } from "../utils/apiResponse.js";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ValidationError) {
-    return res.status(400).json({ error: { code: "invalid_input", field: err.field, message: err.message } });
+    return failureResponse(res, { statusCode: 400, code: "invalid_input", message: err.message, field: err.field });
   }
   if (err instanceof ForbiddenError) {
-    return res.status(403).json({ error: { code: "forbidden", message: err.message } });
+    return failureResponse(res, { statusCode: 403, code: "forbidden", message: err.message });
   }
   if (err instanceof NotFoundError) {
-    return res.status(404).json({ error: { code: "not_found", message: err.message } });
+    return failureResponse(res, { statusCode: 404, code: "not_found", message: err.message });
   }
   console.error(err);
-  return res.status(500).json({ error: { code: "internal_error", message: "Something went wrong." } });
+  return failureResponse(res, { statusCode: 500, code: "internal_error", message: "Something went wrong." });
 }

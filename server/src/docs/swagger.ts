@@ -60,15 +60,38 @@ const definition = {
       },
       Error: {
         type: "object",
+        description: "Standard failure envelope returned by every endpoint.",
         properties: {
-          error: {
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              field: { type: "string", nullable: true },
-              message: { type: "string" },
-            },
-            required: ["code", "message"],
+          status: { type: "string", enum: ["error"] },
+          message: { type: "string", description: "Human-readable explanation." },
+          data: { type: "object", nullable: true, example: null },
+          code: {
+            type: "string",
+            description: "Stable machine-readable identifier.",
+            enum: ["invalid_input", "unauthenticated", "forbidden", "not_found", "internal_error"],
+          },
+          field: { type: "string", description: "Present when one input field is at fault." },
+        },
+        required: ["status", "message", "data", "code"],
+      },
+      SuccessEnvelope: {
+        type: "object",
+        description: "Standard success envelope. `data` carries the resource itself.",
+        properties: {
+          status: { type: "string", enum: ["success"] },
+          message: { type: "string" },
+          data: { description: "Resource, or array of resources." },
+        },
+        required: ["status", "message", "data"],
+      },
+      DecisionResult: {
+        type: "object",
+        properties: {
+          leaveRequest: { $ref: "#/components/schemas/LeaveRequest" },
+          staffingWarning: { nullable: true, $ref: "#/components/schemas/StaffingWarning" },
+          decided: {
+            type: "boolean",
+            description: "False when a staffing warning held the decision back pending confirmation.",
           },
         },
       },

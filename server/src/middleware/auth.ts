@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../db/prisma.js";
+import { failureResponse } from "../utils/apiResponse.js";
 
 /**
  * Stand-in for real session/JWT auth, out of scope for this assessment's time box.
@@ -17,11 +18,15 @@ declare global {
 export async function requireUser(req: Request, res: Response, next: NextFunction) {
   const employeeId = req.header("x-employee-id");
   if (!employeeId) {
-    return res.status(401).json({ error: { code: "unauthenticated", message: "x-employee-id header is required." } });
+    return failureResponse(res, {
+      statusCode: 401,
+      code: "unauthenticated",
+      message: "x-employee-id header is required.",
+    });
   }
   const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
   if (!employee) {
-    return res.status(401).json({ error: { code: "unauthenticated", message: "Unknown employee id." } });
+    return failureResponse(res, { statusCode: 401, code: "unauthenticated", message: "Unknown employee id." });
   }
   req.user = { id: employee.id, name: employee.name, managerId: employee.managerId, teamId: employee.teamId };
   next();

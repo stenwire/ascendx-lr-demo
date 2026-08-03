@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../db/prisma.js";
+import { successResponse } from "../utils/apiResponse.js";
 
 export const employeesRouter = Router();
 
@@ -21,7 +22,9 @@ export const employeesRouter = Router();
  *             schema:
  *               type: object
  *               properties:
- *                 employees:
+ *                 status: { type: string, enum: [success] }
+ *                 message: { type: string }
+ *                 data:
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Employee'
@@ -34,7 +37,7 @@ employeesRouter.get("/", async (_req, res, next) => {
       select: { id: true, name: true, managerId: true, teamId: true },
       orderBy: { name: "asc" },
     });
-    res.json({ employees });
+    successResponse(res, { data: employees, message: "Employees retrieved." });
   } catch (err) {
     next(err);
   }
