@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+}
+
+model Employee {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  managerId String?
+  teamId    String
+  createdAt DateTime @default(now())
+
+  manager         Employee?       @relation("ManagerToReports", fields: [managerId], references: [id])
+  reports         Employee[]      @relation("ManagerToReports")
+  leaveRequests   LeaveRequest[]  @relation("EmployeeToLeaveRequests")
+  decidedRequests LeaveRequest[]  @relation("DeciderToLeaveRequests")
+
+  @@index([teamId])
+  @@index([managerId])
+}
+
+model LeaveRequest {
+  id         String      @id @default(uuid())
+  employeeId String
+  startDate  DateTime
+  endDate    DateTime
+  reason     String
+  managerNote String?
+  status     LeaveStatus @default(pending)
+  aiMessage  String?
+  decidedById String?
+  createdAt  DateTime    @default(now())
+  decidedAt  DateTime?
+
+  employee Employee  @relation("EmployeeToLeaveRequests", fields: [employeeId], references: [id])
+  decider  Employee? @relation("DeciderToLeaveRequests", fields: [decidedById], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+}
