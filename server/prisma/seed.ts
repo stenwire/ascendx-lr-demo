@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { sampleLeaveRequests } from "../src/services/demoData.js";
 
 const prisma = new PrismaClient();
 
@@ -35,9 +36,20 @@ async function main() {
     }),
   ]);
 
+  await prisma.leaveRequest.createMany({
+    data: sampleLeaveRequests({
+      managerId: manager.id,
+      alexId: alex.id,
+      boId: bo.id,
+      caseyId: casey.id,
+    }),
+  });
+
+  const requests = await prisma.leaveRequest.count();
   console.log("Seeded team 'support':");
   console.log(`  manager: ${manager.name} (${manager.id})`);
   console.log(`  reports: ${[alex, bo, casey].map((e) => `${e.name} (${e.id})`).join(", ")}`);
+  console.log(`  ${requests} leave requests across pending, approved and rejected`);
   console.log("\nUse these ids with the x-employee-id header when calling the API.");
 }
 
