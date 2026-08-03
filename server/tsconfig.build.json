@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  // Production build: application and seed only, no tests in the image.
+  "include": ["src", "prisma"]
+}

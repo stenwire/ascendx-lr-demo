@@ -79,5 +79,9 @@ const definition = {
 
 export const openapiSpec = swaggerJSDoc({
   definition,
-  apis: ["./src/routes/*.ts", "./dist/routes/*.js"],
+  // tsc keeps the src/ prefix under outDir (rootDir is the package root, so the
+  // seed script keeps its own folder), hence dist/src/routes rather than
+  // dist/routes. Both globs are listed so the spec is populated in dev and in a
+  // compiled production image.
+  apis: ["./src/routes/*.ts", "./dist/src/routes/*.js"],
 });
