@@ -1,3 +1,4 @@
+import { DemoDataReset } from "../components/DemoDataReset";
 import { Button } from "../components/ui/Button";
 import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -136,6 +137,9 @@ export function HelpPage() {
             </dl>
           </CardBody>
         </Card>
+
+        {/* Renders nothing unless the signed-in employee manages someone. */}
+        <DemoDataReset />
       </div>
     </>
   );
