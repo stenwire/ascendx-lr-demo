@@ -6,6 +6,12 @@ export interface TourStep {
   /** Route to navigate to before showing this step. */
   route?: string;
   managerOnly?: boolean;
+  /**
+   * Target lives inside the sidebar. Below the `lg` breakpoint the sidebar is a
+   * closed drawer sitting off-canvas, so it has to be opened before the step
+   * can highlight anything.
+   */
+  requiresNav?: boolean;
 }
 
 export const TOUR_STEPS: TourStep[] = [
@@ -19,6 +25,7 @@ export const TOUR_STEPS: TourStep[] = [
     title: "Navigation",
     body: "Each action has its own page. Approvals and Team only appear when the signed-in employee manages someone.",
     route: "/",
+    requiresNav: true,
   },
   {
     target: "account",
@@ -45,5 +52,6 @@ export const TOUR_STEPS: TourStep[] = [
     title: "How it works",
     body: "The How it works page covers the AI and offline modes, the guardrails, and why things are built the way they are. You can replay this tour from there.",
     route: "/",
+    requiresNav: true,
   },
 ];

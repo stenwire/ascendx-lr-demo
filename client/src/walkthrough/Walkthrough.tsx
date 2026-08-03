@@ -14,20 +14,55 @@ interface Rect {
   height: number;
 }
 
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+function isDesktop(): boolean {
+  // Assume desktop where matchMedia is unavailable: the drawer only exists
+  // below `lg`, so the safe default is to leave it alone.
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
+  return window.matchMedia(DESKTOP_QUERY).matches;
+}
+
 function readRect(target: string): Rect | null {
   const el = document.querySelector<HTMLElement>(`[data-tour="${target}"]`);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   if (r.width === 0 && r.height === 0) return null;
+
+  // The mobile sidebar is translated off-canvas rather than hidden, so it still
+  // measures a full-size rect while being invisible. Highlighting that would
+  // put the spotlight where nobody can see it; treat it as not-yet-ready so the
+  // caller keeps retrying until the drawer has slid in.
+  const offScreen =
+    r.right <= 0 || r.bottom <= 0 || r.left >= window.innerWidth || r.top >= window.innerHeight;
+  if (offScreen) return null;
+
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
 
-export function Walkthrough() {
+interface WalkthroughProps {
+  /** Whether the mobile navigation drawer is currently open. */
+  navOpen: boolean;
+  onNavOpenChange: (open: boolean) => void;
+}
+
+export function Walkthrough({ navOpen, onNavOpenChange }: WalkthroughProps) {
   const { active, stepIndex, steps, next, back, stop } = useWalkthrough();
   const step = steps[stepIndex];
   const navigate = useNavigate();
   const location = useLocation();
   const [rect, setRect] = useState<Rect | null>(null);
+
+  // Steps pointing into the sidebar need the drawer open on small screens.
+  // On desktop the sidebar is always visible, so leave the drawer alone.
+  useEffect(() => {
+    if (isDesktop()) return;
+    if (!active) {
+      onNavOpenChange(false);
+      return;
+    }
+    onNavOpenChange(Boolean(step?.requiresNav));
+  }, [active, step, onNavOpenChange]);
 
   // Move to the step's route first; the measure effect re-runs once we're there.
   useEffect(() => {
@@ -65,7 +100,8 @@ export function Walkthrough() {
       window.removeEventListener("resize", onViewportChange);
       window.removeEventListener("scroll", onViewportChange, true);
     };
-  }, [active, step, location.pathname]);
+    // navOpen matters: the drawer sliding in changes where the target sits.
+  }, [active, step, location.pathname, navOpen]);
 
   useEffect(() => {
     if (!active) return;
@@ -199,29 +235,43 @@ function Tooltip({ cutout, title, body, stepIndex, total, isLast, onNext, onBack
   );
 }
 
-/** Places the tooltip below the target, flipping above and clamping to the viewport. */
+/**
+ * Places the tooltip below the target, then tries above, then beside. A
+ * full-height target such as the mobile navigation drawer leaves no room
+ * vertically, so falling through to a side placement keeps the tooltip clear of
+ * the thing it is describing.
+ */
 function usePlacement(cutout: Rect | null, tooltipHeight: number): React.CSSProperties {
-  if (!cutout) {
-    return {
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      width: `min(${TOOLTIP_WIDTH}px, calc(100vw - 2rem))`,
-    };
-  }
+  const centred: React.CSSProperties = {
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    width: `min(${TOOLTIP_WIDTH}px, calc(100vw - 2rem))`,
+  };
+  if (!cutout) return centred;
 
   const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024;
   const viewportH = typeof window !== "undefined" ? window.innerHeight : 768;
   const width = Math.min(TOOLTIP_WIDTH, viewportW - 32);
   const height = tooltipHeight || 180;
 
+  const clampLeft = (value: number) => Math.min(Math.max(16, value), viewportW - width - 16);
+  const clampTop = (value: number) => Math.min(Math.max(16, value), Math.max(16, viewportH - height - 16));
+  const centredLeft = clampLeft(cutout.left + cutout.width / 2 - width / 2);
+
   const below = cutout.top + cutout.height + GAP;
-  const fitsBelow = below + height <= viewportH - 16;
-  const top = fitsBelow ? below : Math.max(16, cutout.top - GAP - height);
+  if (below + height <= viewportH - 16) return { top: below, left: centredLeft, width };
 
-  // Centre on the target, then keep it fully on screen.
-  const rawLeft = cutout.left + cutout.width / 2 - width / 2;
-  const left = Math.min(Math.max(16, rawLeft), viewportW - width - 16);
+  const above = cutout.top - GAP - height;
+  if (above >= 16) return { top: above, left: centredLeft, width };
 
-  return { top, left, width };
+  // No vertical room — sit to whichever side has space.
+  const verticallyCentred = clampTop(cutout.top + cutout.height / 2 - height / 2);
+  const toRight = cutout.left + cutout.width + GAP;
+  if (toRight + width <= viewportW - 16) return { top: verticallyCentred, left: toRight, width };
+
+  const toLeft = cutout.left - GAP - width;
+  if (toLeft >= 16) return { top: verticallyCentred, left: toLeft, width };
+
+  return centred;
 }

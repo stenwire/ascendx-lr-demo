@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { useIdentity } from "../../auth/IdentityContext";
+import { useIdentityRouteReset } from "../../auth/useIdentityRouteReset";
 import { Walkthrough } from "../../walkthrough/Walkthrough";
 import { Button } from "../ui/Button";
 import { AccountMenu } from "./AccountMenu";
@@ -10,6 +11,9 @@ import { MenuIcon } from "./icons";
 export function AppLayout() {
   const [navOpen, setNavOpen] = useState(false);
   const { me, loading, error, retry } = useIdentity();
+
+  // Switching employee while viewing one record returns to the collection.
+  useIdentityRouteReset();
 
   if (loading) {
     return (
@@ -75,7 +79,7 @@ export function AppLayout() {
         </main>
       </div>
 
-      <Walkthrough />
+      <Walkthrough navOpen={navOpen} onNavOpenChange={setNavOpen} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { useState } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
 import { ALEX } from "../test/fixtures";
 import { mockFetch, renderApp } from "../test/renderApp";
@@ -9,11 +10,19 @@ import { useWalkthrough } from "./WalkthroughContext";
 
 function Harness() {
   const { start, active } = useWalkthrough();
+  const [navOpen, setNavOpen] = useState(false);
   return (
     <>
       <button onClick={start}>Replay walkthrough</button>
       <span data-testid="state">{active ? "open" : "closed"}</span>
-      <Walkthrough />
+      <span data-testid="nav-open">{navOpen ? "nav-open" : "nav-closed"}</span>
+      {/* Stands in for the sidebar drawer, off-canvas until asked to open. */}
+      <nav data-tour="nav" style={{ position: "fixed", left: navOpen ? 0 : -240, width: 240, height: 400 }}>
+        <a data-tour="help-link" href="/help">
+          How it works
+        </a>
+      </nav>
+      <Walkthrough navOpen={navOpen} onNavOpenChange={setNavOpen} />
     </>
   );
 }
@@ -95,6 +104,73 @@ describe("Walkthrough", () => {
     await waitFor(() => expect(screen.getByText("2 of 4")).toBeInTheDocument());
     await user.keyboard("{ArrowLeft}");
     await waitFor(() => expect(screen.getByText("1 of 4")).toBeInTheDocument());
+  });
+
+  describe("on a narrow screen", () => {
+    /** jsdom reports no media-query support by default; force the mobile answer. */
+    function setViewport(desktop: boolean) {
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches: query.includes("min-width: 1024px") ? desktop : !desktop,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        onchange: null,
+        dispatchEvent: () => false,
+      }));
+    }
+
+    it("opens the navigation drawer for steps that point into it", async () => {
+      setViewport(false);
+      const user = userEvent.setup();
+      renderTour();
+      await user.click(await screen.findByRole("button", { name: "Replay walkthrough" }));
+
+      // Step 1 is the intro and needs nothing open.
+      expect(screen.getByTestId("nav-open")).toHaveTextContent("nav-closed");
+
+      // Step 2 highlights the navigation, which is off-canvas until opened.
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      await waitFor(() => expect(screen.getByTestId("nav-open")).toHaveTextContent("nav-open"));
+    });
+
+    it("closes the drawer again once the tour moves on", async () => {
+      setViewport(false);
+      const user = userEvent.setup();
+      renderTour();
+      await user.click(await screen.findByRole("button", { name: "Replay walkthrough" }));
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      await waitFor(() => expect(screen.getByTestId("nav-open")).toHaveTextContent("nav-open"));
+
+      // Step 3 targets the account menu in the top bar, so the drawer is not needed.
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      await waitFor(() => expect(screen.getByTestId("nav-open")).toHaveTextContent("nav-closed"));
+    });
+
+    it("closes the drawer when the tour is dismissed", async () => {
+      setViewport(false);
+      const user = userEvent.setup();
+      renderTour();
+      await user.click(await screen.findByRole("button", { name: "Replay walkthrough" }));
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      await waitFor(() => expect(screen.getByTestId("nav-open")).toHaveTextContent("nav-open"));
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.getByTestId("nav-open")).toHaveTextContent("nav-closed"));
+    });
+
+    it("leaves the drawer alone on a desktop viewport", async () => {
+      setViewport(true);
+      const user = userEvent.setup();
+      renderTour();
+      await user.click(await screen.findByRole("button", { name: "Replay walkthrough" }));
+      await user.click(screen.getByRole("button", { name: "Next" }));
+
+      // The sidebar is permanently visible at this width; nothing to open.
+      await waitFor(() => expect(screen.getByText("2 of 4")).toBeInTheDocument());
+      expect(screen.getByTestId("nav-open")).toHaveTextContent("nav-closed");
+    });
   });
 
   it("can be skipped from the first step", async () => {
