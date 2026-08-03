@@ -120,6 +120,48 @@ manager can see a warning coming before they act. It fans out one request per di
 report because the API has no team-scoped list endpoint — fine at this size, noted as a
 trade-off rather than worked around.
 
+## Deploying
+
+`Dockerfile.prod` builds a **single container** that runs the whole app: the frontend is
+compiled to static files and served by the API from the same origin, so there is one
+service and one port. Migrations run before the server accepts traffic, and seeding is a
+no-op once the team exists, so a restart never destroys data.
+
+```bash
+docker build -f Dockerfile.prod -t ascendx-lr .
+docker run -p 8000:8000 -e DATABASE_URL="postgresql://…" ascendx-lr
+```
+
+Environment variables:
+
+| Variable | Required | Notes |
+|---|---|---|
+| `DATABASE_URL` | yes | Postgres 16. Managed Postgres on the host, not a container. |
+| `PORT` | no | Defaults to `8000`. Most platforms inject this automatically. |
+| `AI_MODE` | no | `mock` (default) or `live` |
+| `GEMINI_API_KEY` | only for `live` | Falls back to `mock` when unset |
+| `GEMINI_MODEL` | no | Defaults to `gemini-flash-latest` |
+| `STAFFING_MIN_AVAILABLE_RATIO` | no | Defaults to `0.5` |
+| `SEED_FORCE` | no | `true` resets the demo data back to the seeded team |
+
+### Koyeb
+
+Build from the Dockerfile and leave every override **off** — the image already sets its
+own working directory, entrypoint and command:
+
+| Field | Value |
+|---|---|
+| Dockerfile location | `Dockerfile.prod` |
+| Entrypoint | *(leave unset)* |
+| Command | *(leave unset)* |
+| Target | *(leave unset)* |
+| Work directory | *(leave unset)* |
+| Privileged | off |
+
+Set the exposed port to **8000** with an HTTP health check on `/health`, attach a managed
+Postgres and pass its connection string as `DATABASE_URL`. The image is ~1.1 GB, mostly
+the Google ADK and Prisma engine binaries, so give the build a little headroom.
+
 ## AI modes
 
 The app runs with **zero external calls by default** (`AI_MODE=mock` in `.env.example`,

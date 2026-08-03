@@ -1,0 +1,56 @@
+# Single-container production image: the API serves the compiled frontend from
+# its own origin, so the whole app runs as one service. Build context is the
+# repository root.
+#
+#   docker build -f Dockerfile.prod -t ascendx-lr .
+#   docker run -p 8000:8000 -e DATABASE_URL=... ascendx-lr
+
+# ---------- 1. Build the frontend ----------
+FROM node:20-alpine AS client-build
+WORKDIR /build/client
+
+COPY client/package.json client/package-lock.json ./
+RUN npm ci
+
+COPY client/ ./
+RUN npm run build
+
+# ---------- 2. Compile the server ----------
+FROM node:20-alpine AS server-build
+WORKDIR /build/server
+
+# The schema must be present before install: the postinstall hook runs
+# `prisma generate` against it.
+COPY server/package.json server/package-lock.json ./
+COPY server/prisma ./prisma
+RUN npm ci
+
+COPY server/ ./
+RUN npm run build
+
+# ---------- 3. Runtime ----------
+FROM node:20-alpine AS runtime
+WORKDIR /app
+
+# Prisma's musl query engine links against OpenSSL 3.
+RUN apk add --no-cache openssl
+
+ENV NODE_ENV=production
+# Koyeb injects PORT; this is the fallback for a plain `docker run`.
+ENV PORT=8000
+
+# Production dependencies only. `prisma` sits in dependencies rather than
+# devDependencies precisely so `migrate deploy` is available at boot.
+COPY server/package.json server/package-lock.json ./
+COPY server/prisma ./prisma
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY --from=server-build /build/server/dist ./dist
+# The API serves whatever is in ./public as the single-page app.
+COPY --from=client-build /build/client/dist ./public
+
+EXPOSE 8000
+
+# Migrations run before the server accepts traffic. Seeding is a no-op once the
+# team exists, so a restart never destroys data.
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run seed:prod && npm start"]

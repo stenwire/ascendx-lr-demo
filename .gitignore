@@ -22,3 +22,6 @@ Thumbs.db
 
 # Test output
 coverage/
+
+# Personal
+docx_format/
