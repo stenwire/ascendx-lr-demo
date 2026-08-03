@@ -3,6 +3,15 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  // Deployed instances run this on every boot, so seeding is a no-op once the
+  // team exists — otherwise a restart would delete real demo data. Set
+  // SEED_FORCE=true to deliberately reset back to the starting state.
+  const existing = await prisma.employee.count();
+  if (existing > 0 && process.env.SEED_FORCE !== "true") {
+    console.log(`Skipping seed: ${existing} employees already exist. Set SEED_FORCE=true to reset.`);
+    return;
+  }
+
   await prisma.leaveRequest.deleteMany();
   await prisma.employee.deleteMany();
 
