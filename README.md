@@ -30,6 +30,12 @@ other employee to submit leave.
 debugger, say), use `make up-db` for Postgres only, then `make install`, `make migrate`,
 `make seed`, `make dev-server` and `make dev-client`.
 
+<img src="assets/local_workflow.svg" alt="Local development: Vite dev server on :5173 proxies /leave-requests to Express on :4000, which reads and writes a local Postgres container via Prisma. Three containers instead of one." width="900">
+
+Three containers, one per concern. Vite serves the client and proxies API calls to
+Express instead of Express serving a pre-built bundle, everything downstream of that is
+identical to production.
+
 ### Tests
 
 ```bash
@@ -134,6 +140,14 @@ personalised by that header while the URL stays the same.
 `Dockerfile.prod` builds a single container running the whole app: the frontend is
 compiled to static files and served by the API from the same origin, so there is one
 service and one port. Migrations run before the server accepts traffic.
+
+<img src="assets/production_workflow.svg" alt="Production: the React SPA talks to Express over HTTPS, Express reads and writes Postgres on Supabase via Prisma, and on approval branches on AI_MODE, live calls Gemini through Google ADK inside the AI message service with guardrails, a 20 second timeout, and one retry, mock resolves in-process instead." width="850">
+
+One Render container runs Express, serving the built client and the API from a single
+origin, and reading Postgres on Supabase over the session pooler. Approving a request
+branches on `AI_MODE`: `live` calls Gemini through Google ADK inside the AI message
+service (guardrails, 20 second timeout, one retry), `mock` resolves in-process instead.
+Either way the approval itself always succeeds, only the message's origin changes.
 
 ```bash
 docker build -f Dockerfile.prod -t ascendx-lr .
