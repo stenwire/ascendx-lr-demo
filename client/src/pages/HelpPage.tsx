@@ -1,5 +1,6 @@
 import { DemoDataReset } from "../components/DemoDataReset";
 import { FileStorageDiagram, LocalDevDiagram, ProductionDiagram } from "../components/architecture/DeploymentDiagrams";
+import { DbSchema } from "../components/architecture/DbSchema";
 import { Button } from "../components/ui/Button";
 import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -150,6 +151,13 @@ function ArchitectureTab() {
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Local development</p>
             <LocalDevDiagram />
           </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Database" description="server/prisma/schema.prisma" />
+        <CardBody>
+          <DbSchema />
         </CardBody>
       </Card>
 
