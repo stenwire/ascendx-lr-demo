@@ -46,8 +46,11 @@ help: ## Show this help
 
 ## --- Docker: full stack (postgres + server + client) -----------------------
 
-up: ## Build and start the whole app in Docker (postgres, server :4000, client :5173). Add LOGS=1 to follow logs after starting.
+build-up: ## Build and start the whole app in Docker (postgres, server :4000, client :5173). Add LOGS=1 to follow logs after starting.
 	docker compose up -d --build
+
+up: ## Start the whole app in Docker (postgres, server :4000, client :5173). Add LOGS=1 to follow logs after starting.
+	docker compose up
 ifeq ($(LOGS),1)
 	docker compose logs -f
 endif
