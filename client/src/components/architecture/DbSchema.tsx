@@ -59,7 +59,7 @@ export function DbSchema() {
   return (
     <div className="space-y-5">
       <p className="text-sm text-slate-600">
-        Two tables. Every question the app answers, who's on leave, who approved what, who reports to whom, is a
+        Two main tables. Every question the app answers, who's on leave, who approved what, who reports to whom, is a
         query over these rows, not unstructured content, so I never reached for anything beyond plain relational
         tables.
       </p>
